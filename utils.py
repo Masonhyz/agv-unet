@@ -56,9 +56,10 @@ def iou(y_true, y_pred):
     return iouu.mean()
 
 
-def plot_progression(cost_list, val_iou, train_iou):
+def plot_progression(cost_list, val_iou, train_iou, path):
     """
     Plot the three statistics in one duo-axis graph, save the graph
+    :param path: the path to store the plot
     :param cost_list: a list costs
     :param val_iou: a list of dic coefficients (same length as above)
     :param train_iou: a list of IoUs (intersection over union, same length as
@@ -68,7 +69,7 @@ def plot_progression(cost_list, val_iou, train_iou):
     fig, ax1 = plt.subplots()
     ax2 = ax1.twinx()
     iterations = [_ for _ in range(n)]
-    ax1.plot(iterations, val_iou, 'o', color=(139 / 255, 0, 0), label="Validation IoU")
+    ax1.plot(iterations, val_iou, 'o', color=(139 / 255, 0, 0), label="Validation IoU", alpha=0.5)
     ax1.plot(iterations, train_iou, 'x', color=(139 / 255, 0, 0), label="Training IoU")
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Validation accuracy', color=(139/255, 0, 0))
@@ -78,14 +79,15 @@ def plot_progression(cost_list, val_iou, train_iou):
     ax2.set_ylabel('Training loss', color=(0, 0, 139/255))
     ax2.tick_params('y', colors=(0, 0, 139/255))
     plt.title('Training loss and validation accuracy progression')
-    plt.savefig('/home/mason2/AGVon1080Ti/newProgression.png')
+    plt.savefig('/home/mason2/AGVon1080Ti/{}.png'.format(path))
     plt.close()
 
 
-def predict(path, model, sample_point):
+def predict(model, sample_point, path):
     """
     show the ultrasound image of the sample point along with the ground truth
     segmentation and the generated mask by the model of the sample
+    :param path: the path to the folder to which we save the predictions
     :param model: a UNet model
     :param sample_point: tuple, an item from the KDR dataset
     :return:
@@ -108,3 +110,13 @@ def predict(path, model, sample_point):
     fig.suptitle(sample_point[0])
     plt.savefig(os.path.join(path, sample_point[0]))
     plt.close()
+
+
+def write_description(model, path):
+    """
+    write the model description into a txt file and save it
+    :param model: the model of interest
+    :return: none
+    """
+    with open("{}.txt".format(path), "w") as file:
+        file.write(str(model))

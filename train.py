@@ -1,11 +1,8 @@
-import torch as torch
-from tqdm import tqdm
 from utils import *
 from KRD import *
-from UNet import *
-from AgUNet import *
+from AgResUnet import *
 from AamUNet import *
-from RAUnet import *
+from configurations import Configs
 
 
 if torch.cuda.is_available():
@@ -14,39 +11,17 @@ if torch.cuda.is_available():
 else:
     print("CUDA is not available.")
 
-data_config = {
-    "image size": 256,
-    "train ratio": 0.8,
-    "seed": 2222,
-    "debug": 0,
-    "subset": (10, 10)
-}
 
-model_config = {
-    "channel": 8,
-    "dropout": 0.3,
-    "batch normalization": False
-}
-
-training_config = {
-    "epochs": 30,
-    "lr": 0.0001,
-    "regularization": 0,
-    "momentum": 0,
-    "batch size": 1,
-    "criterion": nn.BCELoss()
-}
-
-
+C = Configs()
 # Instantiating my dataset
-dataset = KRD('/home/mason2/AGVon1080Ti/Images/Adult/Knee', data_config)
-train_size = int(data_config["train ratio"] * len(dataset))
+dataset = KRD('/home/mason2/AGVon1080Ti/Images/Adult/Knee', C.data)
+train_size = int(C.data["train ratio"] * len(dataset))
 val_size = len(dataset) - train_size
-torch.manual_seed(data_config["seed"])
+torch.manual_seed(C.data["seed"])
 train_data, val_data = da.random_split(dataset, [train_size, val_size])
-if data_config["debug"]:
-    train_data, val_data = da.Subset(dataset=train_data, indices=range(data_config["subset"][0])), \
-        da.Subset(dataset=val_data, indices=range(data_config["subset"][1]))
+if C.data["debug"]:
+    train_data, val_data = da.Subset(dataset=train_data, indices=range(C.data["subset"][0])), \
+        da.Subset(dataset=val_data, indices=range(C.data["subset"][1]))
 
 
 # Defining training procedures
@@ -54,7 +29,6 @@ def train_unet(model, config):
     optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"])
     criterion = config["criterion"]
     cost_list = []
-    # dice_list = []
     val_iou_list = []
     train_iou_list = []
     train_loader = da.DataLoader(dataset=train_data, batch_size=config["batch size"])
@@ -75,35 +49,40 @@ def train_unet(model, config):
         # Model evaluation
         with torch.no_grad():
             model.eval()
-            for __, images, targets in tqdm(val_loader, desc="Eval V", leave=False):
-                p = model(images)
-                predictions = (p > 0.5).float()
-                # dice = dice_coefficient(predictions.detach(), targets.detach())
-                val_iouu = iou(predictions.detach(), targets.detach())
-            # dice_list.append(dice)
-            val_iou_list.append(val_iouu)
-            for __, images, targets in tqdm(train_loader, desc="Eval T", leave=False):
-                p = model(images)
-                predictions = (p > 0.5).float()
-                tra_iou = iou(predictions.detach(), targets.detach())
-            train_iou_list.append(tra_iou)
+            val_iou_list.append(model.evaluate(val_loader, iou))
+            train_iou_list.append(model.evaluate(train_loader, iou))
 
         # Model state saving
-        torch.save(model.state_dict(), '/home/mason2/AGVon1080Ti/newTrainedWeights/newTrainedWeight{}.pth'.format(_))
+        torch.save(model.state_dict(), '/home/mason2/AGVon1080Ti/{}/newTrainedWeight{}.pth'.format(C.paths["weights folder"], _))
     return cost_list, val_iou_list, train_iou_list
 
 
 if __name__ == "__main__":
-    # Instantiating my_unet
-    my_unet = AamUNet(model_config)
+    # # Instantiating my_unet
+    # my_unet = C.model["type"](C.model)
+    # # Writing model description
+    # write_description(my_unet, C.paths["description name"])
+    #
+    # # Train my_unet
+    # cost, val_iou, train_iou = train_unet(my_unet, C.training)
+    # plot_progression(cost, val_iou, train_iou, C.paths["progression name"])
 
-    # Train my_unet
-    cost, val_iou, train_iou = train_unet(my_unet, training_config)
-    plot_progression(cost, val_iou, train_iou)
+    # Load a pretrained weight to a model and show a prediction with it
+    trained_unet = C.model["type"](C.model)
+    weight_path = '{}/newTrainedWeight{}.pth'.format(C.paths["weights folder"], C.paths["epoch"])
+    trained_unet.load_state_dict(torch.load(weight_path))
+    predict(trained_unet, val_data[C.paths["sample"]], C.paths["predictions folder"])
 
-    # n = 4
-    # # Show prediction with a trained UNet
-    # trained_unet = AamUNet(model_config)
-    # trained_unet.load_state_dict(torch.load('newTrainedWeights/newTrainedWeight13.pth'))
-    # predict('/home/mason/MiDATA/AGV/newPreds',
-    #         trained_unet, val_data[n])
+    # # evaluate my_unet
+    # cost = [0 for i in range(30)]
+    # val_iou = []
+    # train_iou = []
+    # train_loader = da.DataLoader(dataset=train_data,
+    #                              batch_size=training_config["batch size"])
+    # val_loader = da.DataLoader(dataset=val_data,
+    #                            batch_size=training_config["batch size"])
+    # for i in tqdm(range(30), desc="Epoch", leave=False):
+    #     my_unet.load_state_dict(torch.load('Weights*UNet/newTrainedWeight{}.pth'.format(i)))
+    #     val_iou.append(my_unet.evaluate(val_loader, iou))
+    #     train_iou.append(my_unet.evaluate(train_loader, iou))
+    # plot_progression(cost, val_iou, train_iou)

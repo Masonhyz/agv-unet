@@ -1,112 +1,103 @@
 import torch
 import torch.nn as nn
+from tqdm import tqdm
+from utils import iou
 
 
-def double_conv_block(in_channels, out_channels):
-    """
-    a double convolution block with inplace ReLU activation
-    :param in_channels: int, usually multiples of 2
-    :param out_channels: int, usually multiples of 2
-    :return: a double convolution block
-    """
-    return nn.Sequential(
-        nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-        nn.ReLU(inplace=True),
-        nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-        nn.ReLU(inplace=True)
-    )
-
-
-def downsample_block(in_channels, out_channels, dropout):
-    """
-    a downsampling block in the contractive path of a UNet
-    :param in_channels: int, usually half as much as out_channels
-    :param out_channels: int, usually twice as much as in_channels
-    :param dropout: dropout
-    :return: a downsampling block
-    """
-    return nn.Sequential(
-        nn.MaxPool2d(2),
-        nn.Dropout(dropout),
-        double_conv_block(in_channels, out_channels)
-    )
-
-
-def upsample_block(in_channels, out_channels, dropout):
-    """
-    an upsampling block in the expansive path of a UNet
-    :param in_channels: int, usually multiple of two
-    :param out_channels: int, usually half as in_channels
-    :param dropout: dropout
-    :return: the upsampling block
-    """
-    return nn.Sequential(
-        nn.Dropout(dropout),
-        double_conv_block(in_channels * 2, in_channels),
-        nn.ConvTranspose2d(in_channels, out_channels, kernel_size=3, stride=2,
-                           padding=1, output_padding=1))
-
-
-class Upsample_block(nn.Module):
-    def __init__(self, in_channels, out_channels, dropout):
-        super(Upsample_block, self).__init__()
-
-        self.drop = nn.Dropout(dropout)
-        self.conv = double_conv_block(in_channels * 2, in_channels)
-        self.up = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=3,
-                                     stride=2, padding=1, output_padding=1)
+class DoubleConvolutionBlock(nn.Module):
+    def __init__(self, in_channel, out_channel, batch_norm):
+        super(DoubleConvolutionBlock, self).__init__()
+        self.bn = batch_norm
+        self.conv1 = nn.Conv2d(in_channel, out_channel, 3, padding=1)
+        if batch_norm:
+            self.bn1 = nn.BatchNorm2d(out_channel)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(out_channel, out_channel, 3, padding=1)
+        if batch_norm:
+            self.bn2 = nn.BatchNorm2d(out_channel)
+        self.relu2 = nn.ReLU(inplace=True)
 
     def forward(self, x):
-        x = self.drop(x)
-        x = self.conv(x)
-        y = self.up(x)
+        x = self.conv1(x)
+        if self.bn:
+            x = self.bn1(x)
+        x = self.relu1(x)
+        x = self.conv2(x)
+        if self.bn:
+            x = self.bn2(x)
+        x = self.relu2(x)
+        return x
+
+
+class DownsampleBlock(nn.Module):
+    def __init__(self, in_channel, out_channel, batch_norm, dropout):
+        super(DownsampleBlock, self).__init__()
+        self.double_conv = DoubleConvolutionBlock(in_channel, out_channel, batch_norm)
+        self.maxpool = nn.MaxPool2d(2)
+        self.dropout = nn.Dropout(dropout, inplace=True)
+
+    def forward(self, x):
+        x = self.double_conv(x)
+        y = self.maxpool(x)
+        y = self.dropout(y)
         return x, y
 
 
+class UpsampleBlock(nn.Module):
+    def __init__(self, in_channel, out_channel, batch_norm, dropout):
+        super(UpsampleBlock, self).__init__()
+        self.up = nn.ConvTranspose2d(in_channel, in_channel // 2, kernel_size=3, stride=2, padding=1, output_padding=1)
+        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.double_conv = DoubleConvolutionBlock(in_channel, out_channel, batch_norm)
+
+    def forward(self, x, g):
+        g = self.up(g)
+        y = torch.cat([x, g], dim=1)
+        y = self.dropout(y)
+        y = self.double_conv(y)
+        return y
+
+
 class UNet(nn.Module):
-    """
-    Standard UNet class
-    """
-
-    def __init__(self, cfg):
-        """
-        initializer of UNet
-        :param cfg: the model configurations
-        """
+    def __init__(self, configurations):
         super(UNet, self).__init__()
-        c = cfg["channel"]
-        dropout_rate = cfg["dropout"]
 
-        self.down0 = double_conv_block(3, c)
-        self.down1 = downsample_block(c, c * 2, dropout_rate)
-        self.down2 = downsample_block(c * 2, c * 4, dropout_rate)
-        self.down3 = downsample_block(c * 4, c * 8, dropout_rate)
-        self.down4 = downsample_block(c * 8, c * 16, dropout_rate)
+        c = configurations["root channel"]
+        b = configurations["batch normalization"]
+        d = configurations["dropout"]
 
-        self.up4 = nn.ConvTranspose2d(c * 16, c * 8, kernel_size=3,
-                                      stride=2, padding=1, output_padding=1)
-        self.up3 = upsample_block(c * 8, c * 4, dropout_rate)
-        self.up2 = upsample_block(c * 4, c * 2, dropout_rate)
-        self.up1 = upsample_block(c * 2, c, dropout_rate)
-        self.up0 = nn.Sequential(nn.Dropout(dropout_rate),
-                                 double_conv_block(c * 2, c))
-
-        self.final = nn.Conv2d(c, 1, kernel_size=1)
+        self.down1 = DownsampleBlock(3, c, b, d)
+        self.down2 = DownsampleBlock(c, c*2, b, d)
+        self.down3 = DownsampleBlock(c*2, c*4, b, d)
+        self.down4 = DownsampleBlock(c*4, c*8, b, d)
+        self.bottleneck = DoubleConvolutionBlock(c*8, c*16, b)
+        self.up4 = UpsampleBlock(c*16, c*8, b, d)
+        self.up3 = UpsampleBlock(c*8, c*4, b, d)
+        self.up2 = UpsampleBlock(c*4, c*2, b, d)
+        self.up1 = UpsampleBlock(c*2, c, b, d)
+        self.final = nn.Conv2d(c, 1, 1)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        """
-        forward pass of UNet with skip concatenation
-        :param x: input
-        :return: output
-        """
-        d1 = self.down0(x)
-        d2 = self.down1(d1)
-        d3 = self.down2(d2)
-        d4 = self.down3(d3)
-        d5 = self.down4(d4)
-        u4 = self.up4(d5)
-        u3 = self.up3(torch.cat([d4, u4], dim=1))
-        u2 = self.up2(torch.cat([d3, u3], dim=1))
-        u1 = self.up1(torch.cat([d2, u2], dim=1))
-        u0 = self.up0(torch.cat([d1, u1], dim=1))
-        return torch.sigmoid(self.final(u0))
+        x1, y1 = self.down1(x)
+        x2, y2 = self.down2(y1)
+        x3, y3 = self.down3(y2)
+        x4, y4 = self.down4(y3)
+        btn = self.bottleneck(y4)
+        u4 = self.up4(x4, btn)
+        u3 = self.up3(x3, u4)
+        u2 = self.up2(x2, u3)
+        u1 = self.up1(x1, u2)
+        out = self.sigmoid(self.final(u1))
+        return out
+
+    def evaluate(self, data_loader, criterion=iou):
+        total_accuracy = 0
+        total_num = 0
+        for __, images, targets in tqdm(data_loader, desc="Eval", leave=False):
+            p = self.forward(images)
+            predictions = (p > 0.5).float()
+            batch_accuracy = criterion(predictions.detach(), targets.detach())
+            total_accuracy += batch_accuracy * images.shape[0]
+            total_num += images.shape[0]
+        return total_accuracy / total_num

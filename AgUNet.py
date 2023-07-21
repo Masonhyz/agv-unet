@@ -9,19 +9,16 @@ class AG(nn.Module):
     attention, an upsampled map of shape (bs, in_channels[1], H*2, W*2).
 
     Precondition: in_channels[0]==2*in_channels[1];
-    and usually int_channels==in_channels[1] but this does not really matter.
+    and int_channels==in_channels[1], this also does matter.
     """
     def __init__(self, in_channels, int_channels):
         super(AG, self).__init__()
         self.wg = nn.Conv2d(in_channels[0], int_channels, kernel_size=1)
-
         self.wx = nn.Conv2d(in_channels[1], int_channels, kernel_size=2, stride=2)
-
         self.relu = nn.ReLU(inplace=True)
         self.psi = nn.Conv2d(int_channels, 1, kernel_size=1)
         self.sig = nn.Sigmoid()
         self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        self.bn = nn.BatchNorm2d(in_channels[1])
 
     def forward(self, g, x):
         wg = self.wg(g)
@@ -32,58 +29,44 @@ class AG(nn.Module):
         a = self.sig(a)
         a = self.up(a)
         out = a * x
-        out = self.bn(out)
+        # could add a batch normalization here but since the x was already batch
+        # normalized during double convolution block in the encoder path, it
+        # would be redundant
         return out
 
 
-class AgUNet(nn.Module):
-    """
-    Classic Attention UNet class with Attention Gates
-    """
+class AgUNet(UNet):
+    def __init__(self, configurations):
+        super(AgUNet, self).__init__(configurations)
+        c = configurations["root channel"]
+        # b = configurations["batch normalization"]
+        # d = configurations["dropout"]
 
-    def __init__(self, cfg):
-        """
-        initializer of UNet
-        :param cfg: the model configurations
-        """
-        super(AgUNet, self).__init__()
-        c = cfg["channel"]
-        dropout_rate = cfg["dropout"]
-
-        self.down0 = double_conv_block(3, c)
-        self.down1 = downsample_block(c, c*2, dropout_rate)
-        self.down2 = downsample_block(c*2, c*4, dropout_rate)
-        self.down3 = downsample_block(c*4, c*8, dropout_rate)
-        self.down4 = downsample_block(c*8, c*16, dropout_rate)
-
-        self.ag4 = AG([c * 16, c * 8], c * 8)
-        self.up4 = nn.ConvTranspose2d(c*16, c*8, kernel_size=3,
-                                      stride=2, padding=1, output_padding=1)
-        self.ag3 = AG([c * 8, c * 4], c * 4)
-        self.up3 = Upsample_block(c*8, c*4, dropout_rate)
-        self.ag2 = AG([c * 4, c * 2], c * 2)
-        self.up2 = Upsample_block(c*4, c*2, dropout_rate)
-        self.ag1 = AG([c * 2, c * 1], c * 1)
-        self.up1 = Upsample_block(c*2, c, dropout_rate)
-        self.up0 = nn.Sequential(nn.Dropout(dropout_rate),
-                                 double_conv_block(c*2, c))
-
-        self.final = nn.Conv2d(c, 1, kernel_size=1)
+        # self.down1 = DownsampleBlock(3, c, b, d)
+        # self.down2 = DownsampleBlock(c, c*2, b, d)
+        # self.down3 = DownsampleBlock(c*2, c*4, b, d)
+        # self.down4 = DownsampleBlock(c*4, c*8, b, d)
+        # self.bottleneck = DoubleConvolutionBlock(c*8, c*16, b)
+        self.ag4 = AG([c*16, c*8], c*8)
+        # self.up4 = UpsampleBlock(c*16, c*8, b, d)
+        self.ag3 = AG([c*8, c*4], c*4)
+        # self.up3 = UpsampleBlock(c*8, c*4, b, d)
+        self.ag2 = AG([c*4, c*2], c*2)
+        # self.up2 = UpsampleBlock(c*4, c*2, b, d)
+        self.ag1 = AG([c*2, c*1], c*1)
+        # self.up1 = UpsampleBlock(c*2, c, b, d)
+        # self.final = nn.Conv2d(c, 1, 1)
+        # self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        """
-        forward pass of UNet with skip concatenation
-        :param x: input
-        :return: output
-        """
-        d1 = self.down0(x)
-        d2 = self.down1(d1)
-        d3 = self.down2(d2)
-        d4 = self.down3(d3)
-        g4 = self.down4(d4)
-        u4 = self.up4(g4)
-        g3, u3 = self.up3(torch.cat([self.ag4(g4, d4), u4], dim=1))
-        g2, u2 = self.up2(torch.cat([self.ag3(g3, d3), u3], dim=1))
-        g1, u1 = self.up1(torch.cat([self.ag2(g2, d2), u2], dim=1))
-        u0 = self.up0(torch.cat([self.ag1(g1, d1), u1], dim=1))
-        return torch.sigmoid(self.final(u0))
+        x1, y1 = self.down1(x)
+        x2, y2 = self.down2(y1)
+        x3, y3 = self.down3(y2)
+        x4, y4 = self.down4(y3)
+        btn = self.bottleneck(y4)
+        u4 = self.up4(self.ag4(btn, x4), btn)
+        u3 = self.up3(self.ag3(u4, x3), u4)
+        u2 = self.up2(self.ag2(u3, x2), u3)
+        u1 = self.up1(self.ag1(u2, x1), u2)
+        out = self.sigmoid(self.final(u1))
+        return out

@@ -67,7 +67,7 @@ class AamUNet(nn.Module):
         :param cfg: the model configurations
         """
         super(AamUNet, self).__init__()
-        c = cfg["channel"]
+        c = cfg["root channel"]
         dropout_rate = cfg["dropout"]
 
         self.down0 = double_conv_block(3, c)
