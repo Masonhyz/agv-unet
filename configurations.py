@@ -11,13 +11,13 @@ class Configs:
                      "subset": (10, 10)
                      }
 
-        self.model = {"type": AgResUNet,
+        self.model = {"type": ResUNet,
                       "root channel": 16,
                       "dropout": 0,
                       "batch normalization": True
                       }
 
-        self.training = {"epochs": 3,
+        self.training = {"epochs": 20,
                          "lr": 0.0001,
                          "regularization": 0,
                          "momentum": 0,
@@ -25,9 +25,9 @@ class Configs:
                          "criterion": nn.BCELoss()
                          }
 
-        self.paths = {"progression name": "newProgression",
-                      "description name": "newDescription",
-                      "weights folder": "newWeights",
+        self.paths = {"progression name": "ProgResUNet",
+                      "description name": "DescResUNet",
+                      "weights folder": "WeightsResUNet",
                       "epoch": 2,
                       "predictions folder": "newPredictions",
                       "sample": 3,

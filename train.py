@@ -58,31 +58,17 @@ def train_unet(model, config):
 
 
 if __name__ == "__main__":
-    # # Instantiating my_unet
-    # my_unet = C.model["type"](C.model)
-    # # Writing model description
-    # write_description(my_unet, C.paths["description name"])
-    #
-    # # Train my_unet
-    # cost, val_iou, train_iou = train_unet(my_unet, C.training)
-    # plot_progression(cost, val_iou, train_iou, C.paths["progression name"])
+    # Instantiating my_unet
+    my_unet = C.model["type"](C.model)
+    # Writing model description
+    write_description(my_unet, C.paths["description name"])
 
-    # Load a pretrained weight to a model and show a prediction with it
-    trained_unet = C.model["type"](C.model)
-    weight_path = '{}/newTrainedWeight{}.pth'.format(C.paths["weights folder"], C.paths["epoch"])
-    trained_unet.load_state_dict(torch.load(weight_path))
-    predict(trained_unet, val_data[C.paths["sample"]], C.paths["predictions folder"])
+    # Train my_unet
+    cost, val_iou, train_iou = train_unet(my_unet, C.training)
+    plot_progression(cost, val_iou, train_iou, C.paths["progression name"])
 
-    # # evaluate my_unet
-    # cost = [0 for i in range(30)]
-    # val_iou = []
-    # train_iou = []
-    # train_loader = da.DataLoader(dataset=train_data,
-    #                              batch_size=training_config["batch size"])
-    # val_loader = da.DataLoader(dataset=val_data,
-    #                            batch_size=training_config["batch size"])
-    # for i in tqdm(range(30), desc="Epoch", leave=False):
-    #     my_unet.load_state_dict(torch.load('Weights*UNet/newTrainedWeight{}.pth'.format(i)))
-    #     val_iou.append(my_unet.evaluate(val_loader, iou))
-    #     train_iou.append(my_unet.evaluate(train_loader, iou))
-    # plot_progression(cost, val_iou, train_iou)
+    # # Load a pretrained weight to a model and show a prediction with it
+    # trained_unet = C.model["type"](C.model)
+    # weight_path = '{}/newTrainedWeight{}.pth'.format(C.paths["weights folder"], C.paths["epoch"])
+    # trained_unet.load_state_dict(torch.load(weight_path))
+    # predict(trained_unet, val_data[C.paths["sample"]], C.paths["predictions folder"])

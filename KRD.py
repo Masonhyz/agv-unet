@@ -31,6 +31,7 @@ class KRD(da.Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
+        s = self.config["image size"]
         # Get filenames
         file_name = self.filenames[idx]
         us_file_path = os.path.join(self.us_dir, file_name)
@@ -38,8 +39,8 @@ class KRD(da.Dataset):
 
         # Load images
         us_image = Image.open(us_file_path).convert('RGB').\
-            resize((self.config["image size"], self.config["image size"]))
-        mask_image = Image.open(mask_file_path).convert('L').resize((256, 256))
+            resize((s, s))
+        mask_image = Image.open(mask_file_path).convert('L').resize((s, s))
         us_np = np.array(us_image)
         mask_np = np.array(mask_image)
         us_tensor = torch.from_numpy(us_np).permute(2, 0, 1).float() / 255.0
