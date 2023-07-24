@@ -73,7 +73,7 @@ class UNetOld(nn.Module):
     def __init__(self, cfg):
         """
         initializer of UNet
-        :param cfg: the model configurations
+        :param cfg: the models configurations
         """
         super(UNetOld, self).__init__()
         c = cfg["channel"]

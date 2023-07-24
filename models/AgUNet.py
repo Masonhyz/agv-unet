@@ -36,7 +36,14 @@ class AG(nn.Module):
 
 
 class AgUNet(UNet):
+    """
+    Attention gated UNet, a subclass of UNet.
+    """
     def __init__(self, configurations):
+        """
+        Fully configurable initializer, with a fixed number of depth: 5
+        :param configurations: dict, an attribute of a Configs instance.
+        """
         super(AgUNet, self).__init__(configurations)
         c = configurations["root channel"]
         # b = configurations["batch normalization"]
@@ -59,6 +66,11 @@ class AgUNet(UNet):
         # self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
+        """
+        AgUNet forward function
+        :param x: input
+        :return: output
+        """
         x1, y1 = self.down1(x)
         x2, y2 = self.down2(y1)
         x3, y3 = self.down3(y2)

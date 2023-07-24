@@ -1,4 +1,4 @@
-from UNet import *
+from models.UNet import *
 
 
 def upsample_block_(in_channels, out_channels, dropout):
@@ -64,7 +64,7 @@ class AamUNet(nn.Module):
     def __init__(self, cfg):
         """
         initializer of UNet
-        :param cfg: the model configurations
+        :param cfg: the models configurations
         """
         super(AamUNet, self).__init__()
         c = cfg["root channel"]

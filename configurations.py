@@ -1,23 +1,26 @@
-from AgResUnet import *
+from models.AgResUnet import *
 
 
 class Configs:
-
+    """
+    Configs class, whose objects are constants, parameters of interest. This
+    class for better tuning procedures.
+    """
     def __init__(self):
-        self.data = {"image size": 256,
+        self.DATA = {"image size": 256,
                      "train ratio": 0.8,
                      "seed": 2222,
                      "debug": 0,
                      "subset": (10, 10)
                      }
 
-        self.model = {"type": ResUNet,
+        self.MODEL = {"type": ResUNet,
                       "root channel": 16,
                       "dropout": 0,
                       "batch normalization": True
                       }
 
-        self.training = {"epochs": 20,
+        self.TRAINING = {"epochs": 20,
                          "lr": 0.0001,
                          "regularization": 0,
                          "momentum": 0,
@@ -25,7 +28,8 @@ class Configs:
                          "criterion": nn.BCELoss()
                          }
 
-        self.paths = {"progression name": "ProgResUNet",
+        self.PATHS = {"root dir": "/home/mason2/AGVon1080Ti/Images/Adult/Knee",
+                      "progression name": "ProgResUNet",
                       "description name": "DescResUNet",
                       "weights folder": "WeightsResUNet",
                       "epoch": 2,

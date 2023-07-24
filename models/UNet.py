@@ -5,6 +5,10 @@ from utils import iou
 
 
 class DoubleConvolutionBlock(nn.Module):
+    """
+    a double convolution block in a standard UNet, core component both
+    contractive and expansive paths.
+    """
     def __init__(self, in_channel, out_channel, batch_norm):
         super(DoubleConvolutionBlock, self).__init__()
         self.bn = batch_norm
@@ -15,6 +19,7 @@ class DoubleConvolutionBlock(nn.Module):
         self.conv2 = nn.Conv2d(out_channel, out_channel, 3, padding=1)
         if batch_norm:
             self.bn2 = nn.BatchNorm2d(out_channel)
+        # We put a ReLU here because skip connection is the activated map
         self.relu2 = nn.ReLU(inplace=True)
 
     def forward(self, x):
@@ -30,13 +35,24 @@ class DoubleConvolutionBlock(nn.Module):
 
 
 class DownsampleBlock(nn.Module):
+    """
+    The downsample block in a UNet consists of a dcb (double convolution block,
+    a maxpooling downsampler and an optional dropout.
+    """
     def __init__(self, in_channel, out_channel, batch_norm, dropout):
         super(DownsampleBlock, self).__init__()
         self.double_conv = DoubleConvolutionBlock(in_channel, out_channel, batch_norm)
         self.maxpool = nn.MaxPool2d(2)
+        # Usually 0, but is there anyways for conveniece
         self.dropout = nn.Dropout(dropout, inplace=True)
 
     def forward(self, x):
+        """
+        The forward function of this module returns the skip connection saved
+        for upsampling path and the input passed to the next layer.
+        :param x: input
+        :return: skip connection, output
+        """
         x = self.double_conv(x)
         y = self.maxpool(x)
         y = self.dropout(y)
@@ -44,6 +60,10 @@ class DownsampleBlock(nn.Module):
 
 
 class UpsampleBlock(nn.Module):
+    """
+    The upsample block in a UNet consists of a convolution transpose upsampler,
+    an optional dropout, and a dcb.
+    """
     def __init__(self, in_channel, out_channel, batch_norm, dropout):
         super(UpsampleBlock, self).__init__()
         self.up = nn.ConvTranspose2d(in_channel, in_channel // 2, kernel_size=3, stride=2, padding=1, output_padding=1)
@@ -51,6 +71,14 @@ class UpsampleBlock(nn.Module):
         self.double_conv = DoubleConvolutionBlock(in_channel, out_channel, batch_norm)
 
     def forward(self, x, g):
+        """
+        The forward function of this module takes in a input from the caorse
+        layer with higher feature representation and a skip connection from the
+        previously saved downsampling path.
+        :param x: skip connection
+        :param g: feature signal
+        :return: output
+        """
         g = self.up(g)
         y = torch.cat([x, g], dim=1)
         y = self.dropout(y)
@@ -59,7 +87,14 @@ class UpsampleBlock(nn.Module):
 
 
 class UNet(nn.Module):
+    """
+    Standard UNet class, architectures refer to the paper by Olaf Ronneberger.
+    """
     def __init__(self, configurations):
+        """
+        Fully configurable initializer, with a fixed number of depth: 5
+        :param configurations: dict, an attribute of a Configs instance.
+        """
         super(UNet, self).__init__()
 
         c = configurations["root channel"]
@@ -76,9 +111,15 @@ class UNet(nn.Module):
         self.up2 = UpsampleBlock(c*4, c*2, b, d)
         self.up1 = UpsampleBlock(c*2, c, b, d)
         self.final = nn.Conv2d(c, 1, 1)
+        # For binary classification only
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
+        """
+        forward function for UNet
+        :param x: input
+        :return: output
+        """
         x1, y1 = self.down1(x)
         x2, y2 = self.down2(y1)
         x3, y3 = self.down3(y2)
@@ -91,13 +132,21 @@ class UNet(nn.Module):
         out = self.sigmoid(self.final(u1))
         return out
 
-    def evaluate(self, data_loader, criterion=iou):
+    def evaluate(self, data_loader, metric=iou):
+        """
+        the evaluate function in the models evaluation phase, returns the
+        of the whole dataset evaluated by the metric of interest.
+        :param data_loader: the data loader in the training process
+        :param metric: IoU or dice, default IoU, need to be able to do
+        calculation of a batch
+        :return: the accuarcy of the whole dataset.
+        """
         total_accuracy = 0
         total_num = 0
         for __, images, targets in tqdm(data_loader, desc="Eval", leave=False):
             p = self.forward(images)
             predictions = (p > 0.5).float()
-            batch_accuracy = criterion(predictions.detach(), targets.detach())
+            batch_accuracy = metric(predictions.detach(), targets.detach())
             total_accuracy += batch_accuracy * images.shape[0]
             total_num += images.shape[0]
         return total_accuracy / total_num

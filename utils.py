@@ -86,9 +86,9 @@ def plot_progression(cost_list, val_iou, train_iou, path):
 def predict(model, sample_point, path):
     """
     show the ultrasound image of the sample point along with the ground truth
-    segmentation and the generated mask by the model of the sample
+    segmentation and the generated mask by the models of the sample
     :param path: the path to the folder to which we save the predictions
-    :param model: a UNet model
+    :param model: a UNet models
     :param sample_point: tuple, an item from the KDR dataset
     :return:
     """
@@ -114,8 +114,8 @@ def predict(model, sample_point, path):
 
 def write_description(model, path):
     """
-    write the model description into a txt file and save it
-    :param model: the model of interest
+    write the models description into a txt file and save it
+    :param model: the models of interest
     :return: none
     """
     with open("{}.txt".format(path), "w") as file:

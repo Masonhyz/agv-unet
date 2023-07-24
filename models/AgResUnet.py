@@ -3,6 +3,9 @@ from ResUNet import *
 
 
 class AgResUNet(ResUNet):
+    """
+    Residual UNet with attention gates, subclass of ResUNet.
+    """
     def __init__(self, configurations):
         super(AgResUNet, self).__init__(configurations)
         c = configurations["root channel"]
@@ -28,6 +31,11 @@ class AgResUNet(ResUNet):
         # self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
+        """
+        Forward pass of AgResUNet
+        :param x: input
+        :return: output
+        """
         x1, y1 = self.down1(x)
         x2, y2 = self.down2(y1)
         x3, y3 = self.down3(y2)

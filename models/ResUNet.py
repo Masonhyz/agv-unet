@@ -1,7 +1,10 @@
-from UNet import *
+from models.UNet import *
 
 
 class DoubleConvolutionBlock1(nn.Module):
+    """
+    The double convolution block for ResUNet instead of UNet, minor difference.
+    """
     def __init__(self, in_channel, out_channel, batch_norm):
         super(DoubleConvolutionBlock1, self).__init__()
         self.bn = batch_norm
@@ -12,6 +15,8 @@ class DoubleConvolutionBlock1(nn.Module):
         self.conv2 = nn.Conv2d(out_channel, out_channel, 3, padding=1)
         if batch_norm:
             self.bn2 = nn.BatchNorm2d(out_channel)
+        # Don't need an extra relu here since we are adding a relu in the blocks
+        # only after the residual connection.
         # self.relu2 = nn.ReLU(inplace=True)
 
     def forward(self, x):
@@ -27,15 +32,24 @@ class DoubleConvolutionBlock1(nn.Module):
 
 
 class DownsampleResBlock(nn.Module):
+    """
+    Downsample block for residual UNet, minor difference
+    """
     def __init__(self, in_channel, out_channel, batch_norm, dropout):
         super(DownsampleResBlock, self).__init__()
         self.double_conv = DoubleConvolutionBlock1(in_channel, out_channel, batch_norm)
         self.res_conv = nn.Conv2d(in_channel, out_channel, 1)
+        # relu here instead of in dcb
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(2)
         self.dropout = nn.Dropout(dropout, inplace=True)
 
     def forward(self, x):
+        """
+        Forward function of the downsampling block, with residual connection
+        :param x: input
+        :return: skip connection, output
+        """
         res = self.res_conv(x)
         x = self.double_conv(x)
         x = res + x
@@ -46,15 +60,25 @@ class DownsampleResBlock(nn.Module):
 
 
 class UpsampleResBlock(nn.Module):
+    """
+    Upsample block for residual UNet, minor difference.
+    """
     def __init__(self, in_channel, out_channel, batch_norm, dropout):
         super(UpsampleResBlock, self).__init__()
         self.up = nn.ConvTranspose2d(in_channel, in_channel // 2, kernel_size=3, stride=2, padding=1, output_padding=1)
         self.dropout = nn.Dropout(dropout, inplace=True)
         self.double_conv = DoubleConvolutionBlock1(in_channel, out_channel, batch_norm)
         self.res_conv = nn.Conv2d(in_channel, out_channel, 1)
+        # relu here instead of in dcb
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x, g):
+        """
+        Forward function of the upsampling module, with residual connection
+        :param x: skip connection
+        :param g: feature signal
+        :return: output
+        """
         g = self.up(g)
         y = torch.cat([x, g], dim=1)
         y = self.dropout(y)
@@ -66,7 +90,15 @@ class UpsampleResBlock(nn.Module):
 
 
 class ResUNet(UNet):
+    """
+    Residual UNet
+    """
     def __init__(self, configurations):
+        """
+        Fully configurable initializer of ResUNet, subclass a ResUNet, with fix
+        depth: 5
+        :param configurations: dict, an attribute of a Configs instance
+        """
         super(ResUNet, self).__init__(configurations)
         c = configurations["root channel"]
         b = configurations["batch normalization"]
@@ -76,6 +108,7 @@ class ResUNet(UNet):
         self.down2 = DownsampleResBlock(c, c * 2, b, d)
         self.down3 = DownsampleResBlock(c * 2, c * 4, b, d)
         self.down4 = DownsampleResBlock(c * 4, c * 8, b, d)
+        # slightly more complicated bottleneck layer due to residual connection
         self.bottleneck = DoubleConvolutionBlock1(c * 8, c * 16, b)
         self.btn_res_conv = nn.Conv2d(c * 8, c * 16, 1)
         self.btn_relu = nn.ReLU(inplace=True)
@@ -87,6 +120,11 @@ class ResUNet(UNet):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
+        """
+        Th forward function of ResUNet
+        :param x: input
+        :return: output
+        """
         x1, y1 = self.down1(x)
         x2, y2 = self.down2(y1)
         x3, y3 = self.down3(y2)

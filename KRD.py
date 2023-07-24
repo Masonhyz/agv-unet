@@ -7,12 +7,17 @@ import torch
 
 class KRD(da.Dataset):
     """
-    Custom class for the knee recess distension dataset
+    Custom class for the knee recess distension dataset.
     """
-    def __init__(self, root_dir, config):
-        self.root_dir = root_dir
-        self.us_dir = os.path.join(root_dir, 'US')
-        self.masks_dir = os.path.join(root_dir, 'Masks')
+    def __init__(self, config):
+        """
+        Precondition: there has to be an Image directory in root_dir, and a Mask
+        directory as well, both filled with png files with corresponding names.
+        :param config: dict, an attribute of Configs instance
+        """
+        self.root_dir = config["root dir"]
+        self.us_dir = os.path.join(self.root_dir, 'US')
+        self.masks_dir = os.path.join(self.root_dir, 'Masks')
         self.filenames = os.listdir(self.us_dir)
         self.config = config
 
