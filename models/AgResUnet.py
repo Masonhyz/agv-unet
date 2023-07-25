@@ -1,5 +1,5 @@
-from AgUNet import *
-from ResUNet import *
+from models.AgUNet import *
+from models.ResUNet import *
 
 
 class AgResUNet(ResUNet):

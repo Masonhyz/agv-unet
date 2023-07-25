@@ -38,6 +38,10 @@ def dice_coefficient(y_true, y_pred):
     return dice.mean()
 
 
+def dice_loss(y_true, y_pred):
+    return -dice_coefficient(y_true, y_pred)
+
+
 def iou(y_true, y_pred):
     """
     Calculates the iou of a batch of generated masks and a batch of ground truth
@@ -54,6 +58,10 @@ def iou(y_true, y_pred):
     intersection = (y_true * y_pred).sum(dim=1)
     iouu = (1. * intersection + smooth) / (y_true.sum(dim=1) + y_pred.sum(dim=1) - intersection + smooth)
     return iouu.mean()
+
+
+def iou_loss(y_true, y_pred):
+    return -iou(y_true, y_pred)
 
 
 def plot_progression(cost_list, val_iou, train_iou, path):
@@ -79,7 +87,7 @@ def plot_progression(cost_list, val_iou, train_iou, path):
     ax2.set_ylabel('Training loss', color=(0, 0, 139/255))
     ax2.tick_params('y', colors=(0, 0, 139/255))
     plt.title('Training loss and validation accuracy progression')
-    plt.savefig('/home/mason2/AGVon1080Ti/{}.png'.format(path))
+    plt.savefig('/home/mason2/AGVon1080Ti/Prog{}.png'.format(path))
     plt.close()
 
 
@@ -115,8 +123,9 @@ def predict(model, sample_point, path):
 def write_description(model, path):
     """
     write the models description into a txt file and save it
+    :param path: the name to of the txt file
     :param model: the models of interest
     :return: none
     """
-    with open("{}.txt".format(path), "w") as file:
+    with open("Desc{}.txt".format(path), "w") as file:
         file.write(str(model))

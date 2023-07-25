@@ -21,13 +21,14 @@ train_data, val_data = da.random_split(dataset, [train_size, val_size])
 if C.DATA["debug"]:
     train_data, val_data = da.Subset(dataset=train_data, indices=range(C.DATA["subset"][0])), \
         da.Subset(dataset=val_data, indices=range(C.DATA["subset"][1]))
+val_train_data = da.Subset(dataset=train_data, indices=range(750))
 
 
 # Defining training procedures
 def train_unet(model, config):
     """
-    train the unet models given a models and a trainign configuration
-    :param model: a unet models of class UNet
+    train the unet models given a models and a training configuration
+    :param model: an unet models of class UNet
     :param config: training configurations, dict, an attribute of a Configs
     instance
     :return: the cost list, validation IoU list, and training IoU list
@@ -37,7 +38,11 @@ def train_unet(model, config):
     criterion = config["criterion"]
     train_loader = da.DataLoader(dataset=train_data, batch_size=config["batch size"])
     val_loader = da.DataLoader(dataset=val_data, batch_size=config["batch size"])
+    val_train_loader = da.DataLoader(dataset=val_train_data, batch_size=config["batch size"])
 
+    weights_dir = 'Weights{}'.format(C.PATHS["model name"])
+    if not os.path.isdir(weights_dir):
+        os.mkdir(weights_dir)
     cost_list = []
     val_iou_list = []
     train_iou_list = []
@@ -51,17 +56,17 @@ def train_unet(model, config):
             loss = criterion(z, y)
             loss.backward()
             optimizer.step()
-            cost += loss.DATA
+            cost += loss.data
         cost_list.append(cost)
 
         # Model evaluation
         with torch.no_grad():
             model.eval()
             val_iou_list.append(model.evaluate(val_loader, iou))
-            train_iou_list.append(model.evaluate(train_loader, iou))
+            train_iou_list.append(model.evaluate(val_train_loader, iou))
 
         # Model state saving
-        torch.save(model.state_dict(), '/home/mason2/AGVon1080Ti/{}/newTrainedWeight{}.pth'.format(C.PATHS["weights folder"], _))
+        torch.save(model.state_dict(), weights_dir + '/newTrainedWeight{}.pth'.format(_))
     return cost_list, val_iou_list, train_iou_list
 
 
@@ -69,11 +74,12 @@ if __name__ == "__main__":
     # Instantiating my_unet
     my_unet = C.MODEL["type"](C.MODEL)
     # Writing models description
-    write_description(my_unet, C.PATHS["description name"])
+    print("UNet training with configurations: \n{}".format(C))
+    write_description(my_unet, C.PATHS["model name"])
 
     # Train my_unet
     cost_list, val_iou, train_iou = train_unet(my_unet, C.TRAINING)
-    plot_progression(cost_list, val_iou, train_iou, C.PATHS["progression name"])
+    plot_progression(cost_list, val_iou, train_iou, C.PATHS["model name"])
 
     # # Load a pretrained weight to a models and show a prediction with it
     # trained_unet = C.models["type"](C.models)

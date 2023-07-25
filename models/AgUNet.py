@@ -1,4 +1,4 @@
-from UNet import *
+from models.UNet import *
 
 
 class AG(nn.Module):
