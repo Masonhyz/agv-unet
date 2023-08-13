@@ -1,6 +1,7 @@
 from PIL import Image
 import numpy as np
 import torch.utils.data as da
+from torchvision import transforms
 import os
 import torch
 
@@ -20,6 +21,14 @@ class KRD(da.Dataset):
         self.masks_dir = os.path.join(self.root_dir, 'Masks')
         self.filenames = os.listdir(self.us_dir)
         self.config = config
+        self.augment = config["augmentation"]
+        if self.augment:
+            self.aug_common = transforms.Compose([
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
+                    transforms.RandomResizedCrop((256, 256), scale=(0.8, 1.0))
+            ])
+            self.aug_image = transforms.Compose([transforms.ColorJitter(brightness=0.2, contrast=0.2)])
 
     def __len__(self):
         return len(self.filenames)
@@ -36,7 +45,7 @@ class KRD(da.Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        s = self.config["image size"]
+        h, w = self.config["image size"]
         # Get filenames
         file_name = self.filenames[idx]
         us_file_path = os.path.join(self.us_dir, file_name)
@@ -44,11 +53,18 @@ class KRD(da.Dataset):
 
         # Load images
         us_image = Image.open(us_file_path).convert('RGB').\
-            resize((s, s))
-        mask_image = Image.open(mask_file_path).convert('L').resize((s, s))
+            resize((h, w))
+        mask_image = Image.open(mask_file_path).convert('L').resize((h, w))
         us_np = np.array(us_image)
         mask_np = np.array(mask_image)
         us_tensor = torch.from_numpy(us_np).permute(2, 0, 1).float() / 255.0
         mask_tensor = torch.from_numpy(mask_np).unsqueeze(0).float() / 255.0
 
         return file_name, us_tensor, mask_tensor
+
+    def augment(self):
+        """
+        Augment the images
+        :return:
+        """
+

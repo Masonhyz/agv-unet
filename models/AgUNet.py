@@ -19,6 +19,8 @@ class AG(nn.Module):
         self.psi = nn.Conv2d(int_channels, 1, kernel_size=1)
         self.sig = nn.Sigmoid()
         self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        # attention map of a specific input
+        self.map = None
 
     def forward(self, g, x):
         wg = self.wg(g)
@@ -28,6 +30,8 @@ class AG(nn.Module):
         a = self.psi(a)
         a = self.sig(a)
         a = self.up(a)
+        # record the attention map as an attribute in the model
+        self.map = a
         out = a * x
         # could add a batch normalization here but since the x was already batch
         # normalized during double convolution block in the encoder path, it

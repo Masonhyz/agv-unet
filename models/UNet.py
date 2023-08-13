@@ -43,7 +43,7 @@ class DownsampleBlock(nn.Module):
         super(DownsampleBlock, self).__init__()
         self.double_conv = DoubleConvolutionBlock(in_channel, out_channel, batch_norm)
         self.maxpool = nn.MaxPool2d(2)
-        # Usually 0, but is there anyways for conveniece
+        # Usually 0, but is there anyway for convenience
         self.dropout = nn.Dropout(dropout, inplace=True)
 
     def forward(self, x):
