@@ -16,8 +16,8 @@ class Configs:
                      "root dir": "/home/mason2/AGVon1080Ti/Images/Adult/Knee",
                      }
 
-        self.MODEL = {"description": "UNetModified",
-                      "type": UNet,
+        self.MODEL = {"description": "AgResUNetBNRunningNone",
+                      "type": AgUNet,
                       "root channel": 16,
                       "dropout": 0.,
                       "batch normalization": True,
@@ -31,10 +31,10 @@ class Configs:
                          "criterion": nn.BCELoss(),
                          }
 
-        self.ACCESS = {"model name": "UNetModified",
-                       "type": AgUNet,
-                       "epoch": 28,
-                       "sample": 745,
+        self.ACCESS = {"model name": "AgUNetNoEval()_0",
+                       "model config": self.MODEL,
+                       "epoch": 19,
+                       "sample": 30,
                        }
 
     def __str__(self):

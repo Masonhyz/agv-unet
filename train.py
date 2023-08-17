@@ -1,6 +1,5 @@
 from KRD import KRD
 from configurations import Configs
-from tqdm import tqdm
 import torch.utils.data as da
 from utils import *
 
@@ -44,7 +43,7 @@ def train_unet():
         num += 1
     weights_dir = weights_dir + str(num)
     os.mkdir(weights_dir)
-    desc_path = weights_dir + "/Desc" + C.MODEL["description"]
+    desc_path = weights_dir + "/Desc" + C.MODEL["description"] + ".txt"
     write_description(my_unet, desc_path)
 
     # Setting up optimizers and data loaders
@@ -73,9 +72,10 @@ def train_unet():
         # Model evaluation on both training (partial) and validation set
         with torch.no_grad():
             my_unet.eval()
-            val_iou = my_unet.evaluate(val_loader, iou)
+            disable_running(my_unet)
+            val_iou = evaluate_model(my_unet, val_loader)
             val_iou_list.append(val_iou)
-            train_iou = my_unet.evaluate(val_train_loader, iou)
+            train_iou = evaluate_model(my_unet, val_train_loader)
             train_iou_list.append(train_iou)
 
         # Model state saving
@@ -90,4 +90,3 @@ def train_unet():
 
 if __name__ == "__main__":
     train_unet()
-

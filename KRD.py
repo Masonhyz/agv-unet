@@ -62,9 +62,8 @@ class KRD(da.Dataset):
 
         return file_name, us_tensor, mask_tensor
 
-    def augment(self):
-        """
-        Augment the images
-        :return:
-        """
-
+    def get(self, filename):
+        for index, name in enumerate(self.filenames):
+            if name == filename:
+                return self.__getitem__(index)
+        raise FileNotFoundError(f"File '{filename}' not found in KRD dataset")

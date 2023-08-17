@@ -36,7 +36,7 @@ class DoubleConvolutionBlock(nn.Module):
 
 class DownsampleBlock(nn.Module):
     """
-    The downsample block in a UNet consists of a dcb (double convolution block,
+    The downsample block in a UNet consists of a dcb (double convolution block),
     a maxpooling downsampler and an optional dropout.
     """
     def __init__(self, in_channel, out_channel, batch_norm, dropout):
@@ -72,7 +72,7 @@ class UpsampleBlock(nn.Module):
 
     def forward(self, x, g):
         """
-        The forward function of this module takes in a input from the caorse
+        The forward function of this module takes in an input from the coarse
         layer with higher feature representation and a skip connection from the
         previously saved downsampling path.
         :param x: skip connection
@@ -134,12 +134,12 @@ class UNet(nn.Module):
 
     def evaluate(self, data_loader, metric=iou):
         """
-        the evaluate function in the models evaluation phase, returns the
+        the evaluate function in the models evaluation phase, returns the IoU
         of the whole dataset evaluated by the metric of interest.
         :param data_loader: the data loader in the training process
         :param metric: IoU or dice, default IoU, need to be able to do
         calculation of a batch
-        :return: the accuarcy of the whole dataset.
+        :return: the accuracy of the whole dataset.
         """
         total_accuracy = 0
         total_num = 0

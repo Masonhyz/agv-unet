@@ -1,8 +1,12 @@
 import os
 import matplotlib.pylab as plt
+import numpy as np
 import torch.nn as nn
 import torch
 import matplotlib.cm as cm
+from tqdm import tqdm
+from skimage.measure import label
+from scipy.spatial.distance import directed_hausdorff
 
 
 def show_data(data_sample):
@@ -83,21 +87,41 @@ def iou_loss(y_true, y_pred):
     return -iou(y_true, y_pred)
 
 
-def plot_progression(cost_list, val_iou, train_iou, path):
+class CELDice:
+    def __init__(self, dice_weight=0, num_classes=1):
+        self.nll_loss = nn.CrossEntropyLoss()
+        self.jaccard_weight = dice_weight
+        self.num_classes = num_classes
+
+    def __call__(self, outputs, targets):
+        loss = (1 - self.jaccard_weight) * self.nll_loss(outputs, targets)
+        if self.jaccard_weight:
+            eps = 1e-15
+            for cls in range(self.num_classes):
+                jaccard_target = (targets == cls).float()
+                jaccard_output = outputs[:, cls].exp()
+                intersection = (jaccard_output * jaccard_target).sum()
+                union = jaccard_output.sum() + jaccard_target.sum()
+                loss -= torch.log((2*intersection + eps) / (union + eps)) * self.jaccard_weight
+        return loss
+
+
+def plot_progression(cost_list, val_iou_list, train_iou_list, path):
     """
     Plot the three statistics in one duo-axis graph, save the graph
     :param path: the path to store the plot
     :param cost_list: a list costs
-    :param val_iou: a list of dic coefficients (same length as above)
-    :param train_iou: a list of IoUs (intersection over union, same length as
+    :param val_iou_list: a list of dic coefficients (same length as above)
+    :param train_iou_list: a list of IoUs (intersection over union, same length as
     above)
     """
     n = len(cost_list)
+    assert(len(cost_list) == len(val_iou_list) and len(val_iou_list) == len(train_iou_list))
     fig, ax1 = plt.subplots()
     ax2 = ax1.twinx()
     iterations = [_ for _ in range(n)]
-    ax1.plot(iterations, val_iou, 'o', color=(139 / 255, 0, 0), label="Validation IoU", alpha=0.5)
-    ax1.plot(iterations, train_iou, 'x', color=(139 / 255, 0, 0), label="Training IoU")
+    ax1.plot(iterations, val_iou_list, 'o', color=(139 / 255, 0, 0), label="Validation IoU", alpha=0.5)
+    ax1.plot(iterations, train_iou_list, 'x', color=(139 / 255, 0, 0), label="Training IoU")
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Validation accuracy', color=(139/255, 0, 0))
     ax1.legend(title="metric", loc="center right", bbox_to_anchor=(1, 0.5))
@@ -106,20 +130,21 @@ def plot_progression(cost_list, val_iou, train_iou, path):
     ax2.set_ylabel('Training loss', color=(0, 0, 139/255))
     ax2.tick_params('y', colors=(0, 0, 139/255))
     plt.title('Training loss and validation accuracy progression')
-    plt.savefig('/home/mason2/AGVon1080Ti/{}'.format(path))
+    plt.savefig('/home/mason2/AGVon1080Ti/{}.png'.format(path))
     plt.close()
 
 
-def generate_mask(model, sample_point, path):
+def generate_mask(model, sample_point, model_name):
     """
     show the ultrasound image of the sample point along with the ground truth
     segmentation and the generated mask by the models of the sample
-    :param path: the path to the folder to which we save the predictions
+    :param model_name: the models name, determines which folder to save the
+    figure to
     :param model: a UNet model
     :param sample_point: tuple, an item from the KDR dataset
     :return:
     """
-    path = "Preds{}".format(path)
+    path = "Logging{}".format(model_name)
     if not os.path.isdir(path):
         os.mkdir(path)
     fig, axes = plt.subplots(1, 3, figsize=(12, 6))
@@ -193,7 +218,7 @@ def write_description(model, path):
         file.write(str(model))
 
 
-def visualize_attention(model, sample_point):
+def visualize_attention(model, sample_point, model_name):
     """
     Given a model and a data point, plot the attention maps of the specific
     input at all spatial levels
@@ -202,43 +227,123 @@ def visualize_attention(model, sample_point):
     index is the image
     :return: None
     """
+    path = "Logging{}".format(model_name)
     fig, axes = plt.subplots(1, 5, figsize=(12, 6))
     model(sample_point[1].unsqueeze(0))
     image = sample_point[1].numpy().transpose((1, 2, 0))
-    viridis = cm.get_cmap('turbo')
+    turbo = cm.get_cmap('turbo')
 
     axes[0].imshow(image)
-    axes[1].imshow(viridis(model.ag1.map[0][0].detach().numpy()))
-    axes[2].imshow(viridis(model.ag2.map[0][0].detach().numpy()))
-    axes[3].imshow(viridis(model.ag3.map[0][0].detach().numpy()))
-    axes[4].imshow(viridis(model.ag4.map[0][0].detach().numpy()))
+    axes[1].imshow(turbo(model.ag1.map[0][0].detach().numpy()))
+    axes[2].imshow(turbo(model.ag2.map[0][0].detach().numpy()))
+    axes[3].imshow(turbo(model.ag3.map[0][0].detach().numpy()))
+    axes[4].imshow(turbo(model.ag4.map[0][0].detach().numpy()))
 
     for ax in axes:
         ax.axis('off')
-    counter = 0
-    filename = "newAttentionMap"
-    extension = ".png"
-    while os.path.exists(f"{filename}_{counter}{extension}"):
-        counter += 1
-    # Save the plot with the unique filename
-    plt.savefig(f"{filename}_{counter}{extension}")
+    filename = "AttentionMap"
+    plt.savefig(f"{path}/{filename}{sample_point[0]}")
     plt.close()
 
 
-class CELDice:
-    def __init__(self, dice_weight=0,num_classes=1):
-        self.nll_loss = nn.CrossEntropyLoss()
-        self.jaccard_weight = dice_weight
-        self.num_classes = num_classes
+def evaluate_model(model, data_loader, metric=iou, report=False):
+    """
+    the evaluate function in the models evaluation phase, returns the statistic
+    of the whole dataset evaluated by the metric of interest.
+    :param report: whether we print results out
+    :param model: the model to evaluate
+    :param data_loader: the data loader in the training process
+    :param metric: iou, dice_coefficient, percentage_one_piece, or
+    fragmentation, (default iou,) needs to be a binary operator and able to do
+    calculation of a batch
+    :return: the metric of the whole dataset.
+    """
+    total = 0
+    total_num = 0
+    for __, images, targets in tqdm(data_loader, desc="Eval", leave=False):
+        p = model(images)
+        predictions = (p > 0.5).float()
+        batch = metric(predictions.detach(), targets.detach())
+        total += batch * images.shape[0]
+        total_num += images.shape[0]
+    result = total / total_num
+    if report:
+        print("{}: {}".format(metric.__name__, result))
+    return result
 
-    def __call__(self, outputs, targets):
-        loss = (1 - self.jaccard_weight) * self.nll_loss(outputs, targets)
-        if self.jaccard_weight:
-           eps = 1e-15
-           for cls in range(self.num_classes):
-               jaccard_target = (targets == cls).float()
-               jaccard_output = outputs[:, cls].exp()
-               intersection = (jaccard_output * jaccard_target).sum()
-               union = jaccard_output.sum() + jaccard_target.sum()
-               loss -= torch.log((2*intersection + eps) / (union + eps)) * self.jaccard_weight
-        return loss
+
+def disable_running(model):
+    """
+    The bug that was found in model.eval() phase. Disables track_running_mean,
+    clears running_mean and running_var to activate proper model evaluation
+    :param model: the model of interest
+    :return: None
+    """
+    for m in model.modules():
+        if isinstance(m, nn.BatchNorm2d):
+            m.track_running_stats = False
+            m.running_mean = None
+            m.running_var = None
+
+
+def one_piece(mask):
+    """
+    Test if a given binary mask is one-piece or not using 4-connectivity
+    :param mask: the binary mask with 0 as background and 1 as foreground, a
+    numpy array
+    :return: True iff the mask is one-piece
+    """
+    labeled_mask = label(mask, connectivity=1)
+    unique_labels = set(labeled_mask.flatten())
+    num_labels = len(unique_labels) - (1 if 0 in unique_labels else 0)
+    return num_labels == 1
+
+
+def percentage_one_piece(y_pred, y_true):
+    """
+    Calculates the percentage of one-piece masks in a batch of generated masks
+    :param y_true: un-used
+    :param y_pred: a batch of generated mask, a Tensor of shape (batch size,
+    height, width)
+    :return: the percentage of one-piece masks of the batch
+    """
+    y_pred = y_pred.numpy()
+    one_piece_count = sum(one_piece(mask) for mask in y_pred)
+    percentage = (one_piece_count / len(y_pred)) * 100
+    return percentage
+
+
+def hausdorff_distance(y_pred, y_true):
+    """
+    Returns the symmetrical hausdorff distance between two masks, a measure of
+    similarity
+    :param y_true: a ground truth mask, a Tensor of shape (height, width)
+    :param y_pred: a generated mask, a Tensor of shape (height, width)
+    :return: the hausdorff distance loss of the two masks
+    """
+    return max(directed_hausdorff(y_pred, y_true)[0], directed_hausdorff(y_true, y_pred)[0])
+
+
+def batch_hausdorff(y_pred, y_true):
+    """
+    Returns the mean symmetrical hausdorff distance between two masks, a measure
+    of similarity
+    :param y_true: a batch of ground truth mask, a Tensor of shape (batch size,
+    height, width)
+    :param y_pred: a batch of generated mask, a Tensor of shape (batch size,
+    height, width)
+    :return: the mean hausdorff distance loss of the batch
+    """
+    y_pred, y_true = y_pred.numpy(), y_true.numpy()
+    hau = sum(hausdorff_distance(mask[0], truth[0]) for mask, truth in zip(y_pred, y_true))
+    mean = hau / len(y_pred)
+    return mean
+
+
+def instantiate_unet(config):
+    """
+    Instantiate and return an instance of a UNet regardless of its type
+    :param config: model config dict
+    :return: created UNet
+    """
+    return config["type"](config)
