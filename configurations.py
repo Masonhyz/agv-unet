@@ -12,12 +12,12 @@ class Configs:
                      "seed": 2222,
                      "augmentation": False,
                      "debug": 0,
-                     "subset": (10, 10),
+                     "subset": (3, 3),
                      "root dir": "/home/mason2/AGVon1080Ti/Images/Adult/Knee",
                      }
 
-        self.MODEL = {"description": "AgResUNetBNRunningNone",
-                      "type": AgUNet,
+        self.MODEL = {"description": "UNet_1",
+                      "type": AgResUNet,
                       "root channel": 16,
                       "dropout": 0.,
                       "batch normalization": True,
@@ -31,7 +31,7 @@ class Configs:
                          "criterion": nn.BCELoss(),
                          }
 
-        self.ACCESS = {"model name": "AgUNetNoEval()_0",
+        self.ACCESS = {"model name": "AgResUNetBNNoEval()Dropout0.3_0",
                        "model config": self.MODEL,
                        "epoch": 19,
                        "sample": 30,

@@ -14,7 +14,7 @@ class KRD(da.Dataset):
         """
         Precondition: there has to be an Image directory in root_dir, and a Mask
         directory as well, both filled with png files with corresponding names.
-        :param config: dict, an attribute of Configs instance
+        :param config: dict, an attribute of a Configs instance
         """
         self.root_dir = config["root dir"]
         self.us_dir = os.path.join(self.root_dir, 'US')
