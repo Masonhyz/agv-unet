@@ -1,1 +1,1 @@
-Research project from scratch of unet implementations, attention gates, attention gate variants, residual blocks, recurrent unets, ViT
+See Analyzing Attention Gate Variants in UNet for Knee Recess Distension Ultrasound Segmentatioin.pdf
